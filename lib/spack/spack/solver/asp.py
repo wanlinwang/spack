@@ -1429,7 +1429,7 @@ class SpackSolverSetup(object):
 
         # enumerate so we can determine which list it came from
         # cast to list to ensure addable types
-        for i, spec in enumerate(tuple(specs) + tuple(dev_specs)):
+        for i, spec in enumerate(specs + dev_specs):
             for dep in spec.traverse():
                 if not dep.versions.concrete:
                     continue
@@ -1859,6 +1859,7 @@ class SpackSolverSetup(object):
             )
             for name, info in env.dev_specs.items()
         ) if env else tuple()
+        specs = tuple(specs)  # ensure compatible types to add
 
         # get possible compilers
         self.possible_compilers = self.generate_possible_compilers(specs)

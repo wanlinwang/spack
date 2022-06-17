@@ -243,6 +243,8 @@ class AspFunction(AspObject):
                 return clingo.String(str(arg))
             elif isinstance(arg, int):
                 return clingo.Number(arg)
+            elif isinstance(arg, clingo.Symbol):
+                return arg
             else:
                 return clingo.String(str(arg))
         return clingo.Function(
@@ -261,7 +263,18 @@ class AspFunctionBuilder(object):
         return AspFunction(name)
 
 
+class AttrFunction(AspFunction):
+    def __call__(self, *args):
+        return AspFunction("attr", (clingo.Function(self.name),) + args)
+
+
+class AttrBuilder(AspFunctionBuilder):
+    def __getattr__(self, name):
+        return AttrFunction(name)
+
+
 fn = AspFunctionBuilder()
+attr = AttrBuilder()
 
 
 def all_compilers_in_config():
@@ -774,14 +787,14 @@ class SpackSolverSetup(object):
         assert spec.name
 
         if spec.concrete:
-            return [fn.version(spec.name, spec.version)]
+            return [attr.version(spec.name, spec.version)]
 
         if spec.versions == spack.version.ver(":"):
             return []
 
         # record all version constraints for later
         self.version_constraints.add((spec.name, spec.versions))
-        return [fn.node_version_satisfies(spec.name, spec.versions)]
+        return [attr.node_version_satisfies(spec.name, spec.versions)]
 
     def target_ranges(self, spec, single_target_fn):
         target = spec.architecture.target
@@ -791,7 +804,7 @@ class SpackSolverSetup(object):
             return [single_target_fn(spec.name, target)]
 
         self.target_constraints.add(target)
-        return [fn.node_target_satisfies(spec.name, target)]
+        return [attr.node_target_satisfies(spec.name, target)]
 
     def conflict_rules(self, pkg):
         default_msg = "{0} '{1}' conflicts with '{2}'"
@@ -1003,9 +1016,7 @@ class SpackSolverSetup(object):
         requirements = self.spec_clauses(
             named_cond, body=True, required_from=name)
         for pred in requirements:
-            self.gen.fact(
-                fn.condition_requirement(condition_id, pred.name, *pred.args)
-            )
+            self.gen.fact(fn.condition_requirement(condition_id, *pred.args))
 
         if imposed_spec:
             self.impose(condition_id, imposed_spec, node=False, name=name)
@@ -1017,11 +1028,9 @@ class SpackSolverSetup(object):
             imposed_spec, body=body, required_from=name)
         for pred in imposed_constraints:
             # imposed "node"-like conditions are no-ops
-            if not node and pred.name in ("node", "virtual_node"):
+            if not node and pred.args[0].name in ("node", "virtual_node"):
                 continue
-            self.gen.fact(
-                fn.imposed_constraint(condition_id, pred.name, *pred.args)
-            )
+            self.gen.fact(fn.imposed_constraint(condition_id, *pred.args))
 
     def package_provider_rules(self, pkg):
         for provider_name in sorted(set(s.name for s in pkg.provided.keys())):
@@ -1254,26 +1263,26 @@ class SpackSolverSetup(object):
 
         # TODO: do this with consistent suffixes.
         class Head(object):
-            node = fn.node
-            virtual_node = fn.virtual_node
-            node_platform = fn.node_platform_set
-            node_os = fn.node_os_set
-            node_target = fn.node_target_set
-            variant_value = fn.variant_set
-            node_compiler = fn.node_compiler_set
-            node_compiler_version = fn.node_compiler_version_set
-            node_flag = fn.node_flag_set
+            node = attr.node
+            virtual_node = attr.virtual_node
+            node_platform = attr.node_platform_set
+            node_os = attr.node_os_set
+            node_target = attr.node_target_set
+            variant_value = attr.variant_set
+            node_compiler = attr.node_compiler_set
+            node_compiler_version = attr.node_compiler_version_set
+            node_flag = attr.node_flag_set
 
         class Body(object):
-            node = fn.node
-            virtual_node = fn.virtual_node
-            node_platform = fn.node_platform
-            node_os = fn.node_os
-            node_target = fn.node_target
-            variant_value = fn.variant_value
-            node_compiler = fn.node_compiler
-            node_compiler_version = fn.node_compiler_version
-            node_flag = fn.node_flag
+            node = attr.node
+            virtual_node = attr.virtual_node
+            node_platform = attr.node_platform
+            node_os = attr.node_os
+            node_target = attr.node_target
+            variant_value = attr.variant_value
+            node_compiler = attr.node_compiler
+            node_compiler_version = attr.node_compiler_version
+            node_flag = attr.node_flag
 
         f = Body if body else Head
 
@@ -1335,7 +1344,7 @@ class SpackSolverSetup(object):
 
             elif spec.compiler.versions:
                 clauses.append(
-                    fn.node_compiler_version_satisfies(
+                    attr.node_compiler_version_satisfies(
                         spec.name, spec.compiler.name, spec.compiler.versions))
                 self.compiler_version_constraints.add(spec.compiler)
 
@@ -1346,7 +1355,7 @@ class SpackSolverSetup(object):
 
         # dependencies
         if spec.concrete:
-            clauses.append(fn.hash(spec.name, spec.dag_hash()))
+            clauses.append(attr.hash(spec.name, spec.dag_hash()))
 
         # add all clauses from dependencies
         if transitive:
@@ -1360,12 +1369,12 @@ class SpackSolverSetup(object):
                     for dtype in dspec.deptypes:
                         # skip build dependencies of already-installed specs
                         if concrete_build_deps or dtype != "build":
-                            clauses.append(fn.depends_on(spec.name, dep.name, dtype))
+                            clauses.append(attr.depends_on(spec.name, dep.name, dtype))
 
                     # imposing hash constraints for all but pure build deps of
                     # already-installed concrete specs.
                     if concrete_build_deps or dspec.deptypes != ("build",):
-                        clauses.append(fn.hash(dep.name, dep.dag_hash()))
+                        clauses.append(attr.hash(dep.name, dep.dag_hash()))
 
                 # if the spec is abstract, descend into dependencies.
                 # if it's concrete, then the hashes above take care of dependency
@@ -1907,14 +1916,21 @@ class SpackSolverSetup(object):
             self.gen.h2('Spec: %s' % str(spec))
             self.gen.fact(fn.literal(idx))
 
-            root_fn = fn.virtual_root(spec.name) if spec.virtual else fn.root(spec.name)
-            self.gen.fact(fn.literal(idx, root_fn.name, *root_fn.args))
+            root_fn = attr.root(spec.name)
+            if spec.virtual:
+                root_fn = attr.virtual_root(spec.name)
+
+            self.gen.fact(fn.literal(idx, *root_fn.args))
             for clause in self.spec_clauses(spec):
-                self.gen.fact(fn.literal(idx, clause.name, *clause.args))
-                if clause.name == 'variant_set':
-                    self.gen.fact(fn.literal(
-                        idx, "variant_default_value_from_cli", *clause.args
-                    ))
+                self.gen.fact(fn.literal(idx, *clause.args))
+                if clause.args[0].name == 'variant_set':
+                    self.gen.fact(
+                        fn.literal(
+                            idx,
+                            clingo.Function("variant_default_value_from_cli"),
+                            *clause.args[1:]
+                        )
+                    )
 
         if self.concretize_everything:
             self.gen.fact(fn.concretize_everything())
@@ -1922,8 +1938,18 @@ class SpackSolverSetup(object):
 
 class SpecBuilder(object):
     """Class with actions to rebuild a spec from ASP results."""
-    #: Attributes that don't need actions
-    ignored_attributes = ["opt_criterion"]
+    #: Spec attributes returned by the solver that don't need actions
+    #: Attributes ending in '_set' are also ignored
+    ignored_attributes = set([
+        "node_version_satisfies",
+        "node_compiler_version_satisfies",
+        "node_target_satisfies",
+        "opt_criterion",
+        "root",
+        "variant_default_value_from_cli",
+        "virtual_node",
+        "virtual_root",
+    ])
 
     def __init__(self, specs, reuse=None):
         self._specs = {}
@@ -2113,18 +2139,25 @@ class SpecBuilder(object):
             return (0, 0)
 
     def build_specs(self, function_tuples):
+        # Most results shown by the solver are of the form `attr(...)`, but there are
+        # other plain tuples we get back (like `opt_criterion`)
+        self.function_tuples = [
+            (name, args) if name != "attr" else (args[0], args[1:])
+            for name, args in function_tuples
+        ]
+
         # Functions don't seem to be in particular order in output.  Sort
         # them here so that directives that build objects (like node and
         # node_compiler) are called in the right order.
-        self.function_tuples = function_tuples
         self.function_tuples.sort(key=self.sort_fn)
 
         self._specs = {}
-        for name, args in function_tuples:
-            if name in SpecBuilder.ignored_attributes:
+        for name, args in self.function_tuples:
+            if name.endswith("_set") or name in SpecBuilder.ignored_attributes:
                 continue
 
             action = getattr(self, name, None)
+
             # print out unknown actions so we can display them for debugging
             if not action:
                 msg = "%s(%s)" % (name, ", ".join(str(a) for a in args))

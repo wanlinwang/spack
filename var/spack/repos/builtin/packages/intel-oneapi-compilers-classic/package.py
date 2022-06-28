@@ -2,6 +2,7 @@
 # Spack Project Developers. See the top-level COPYRIGHT file for details.
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
+import os
 from spack.package import *
 
 
@@ -18,14 +19,10 @@ class IntelOneapiCompilersClassic(Package):
 
     has_code = False
 
-    phases = []
-
     # Versions before 2021 are in the `intel` package
     # intel-oneapi versions before 2022 use intel@19.0.4
     for ver, oneapi_ver in {
-# make this version available when 2022.2.0 is available in the dependency
-#        '2021.6.0': '2022.2.0',
-        '2021.5.0': '2022.1.0',
+        '2021.6.0': '2022.1.0:2022.2.0',
     }.items():
         version(ver)
         depends_on('intel-oneapi-compilers@' + oneapi_ver, when='@' + ver, type='run')

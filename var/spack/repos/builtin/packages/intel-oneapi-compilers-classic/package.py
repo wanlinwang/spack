@@ -32,7 +32,7 @@ class IntelOneapiCompilersClassic(Package):
     def oneapi_compiler_prefix(self):
         oneapi_version = self.spec['intel-oneapi-compilers'].version
         return self.spec['intel-oneapi-compilers'].prefix.compiler.join(
-            '%s' % oneapi_version).linux
+            str(oneapi_version))
 
     def setup_run_environment(self, env):
         """Adds environment variables to the generated module file.
@@ -45,15 +45,14 @@ class IntelOneapiCompilersClassic(Package):
 
         and from setting CC/CXX/F77/FC
         """
-        env.set('CC', self.oneapi_compiler_prefix.bin.intel64.icc)
-        env.set('CXX', self.oneapi_compiler_prefix.bin.intel64.icpc)
-        env.set('F77', self.oneapi_compiler_prefix.bin.intel64.ifort)
-        env.set('FC', self.oneapi_compiler_prefix.bin.intel64.ifort)
+        env.set('CC', self.oneapi_compiler_prefix.linux.bin.intel64.icc)
+        env.set('CXX', self.oneapi_compiler_prefix.linux.bin.intel64.icpc)
+        env.set('F77', self.oneapi_compiler_prefix.linux.bin.intel64.ifort)
+        env.set('FC', self.oneapi_compiler_prefix.linux.bin.intel64.ifort)
 
     def install(self, spec, prefix):
-        os.symlink(self.oneapi_compiler_prefix.bin.intel64, prefix.bin)
-        os.symlink(self.oneapi_compiler_prefix.lib, prefix.lib)
-        os.symlink(self.oneapi_compiler_prefix.include, prefix.include)
-        os.symlink(self.oneapi_compiler_prefix.compiler, prefix.compiler)
-        os.symlink(self.oneapi_compiler_prefix.man, prefix.man)
-        os.symlink(self.oneapi_compiler_prefix.share, prefix.share)
+        os.symlink(self.oneapi_compiler_prefix.linux.bin.intel64, prefix.bin)
+        os.symlink(self.oneapi_compiler_prefix.linux.lib, prefix.lib)
+        os.symlink(self.oneapi_compiler_prefix.linux.include, prefix.include)
+        os.symlink(self.oneapi_compiler_prefix.linux.compiler, prefix.compiler)
+        os.symlink(self.oneapi_compiler_prefix.documentation.en.man, prefix.man)

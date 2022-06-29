@@ -111,6 +111,11 @@ class IntelOneapiCompilers(IntelOneApiPackage):
         for dir in dirs:
             yield join_path(self.component_path, 'linux', dir)
 
+    @property
+    def compiler_search_prefix(self):
+        return self.prefix.compiler.join(
+            str(self.version)).linux.bin
+
     def install(self, spec, prefix):
         # install cpp
         # Copy instead of install to speed up debugging

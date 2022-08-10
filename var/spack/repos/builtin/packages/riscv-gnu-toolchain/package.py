@@ -21,9 +21,9 @@ class RiscvGnuToolchain(Package):
     phases = ['configure', 'build']
     
     build_targets = ""
-    if "+Newlib" in spec:
+    if "+Newlib" in self.spec:
         build_targets = ""
-    elif "+Linux" in spec:
+    elif "+Linux" in self.spec:
         build_targets = "linux"
 
     maintainers = ['wanlinwang']

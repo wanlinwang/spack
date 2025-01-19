@@ -22,7 +22,6 @@ class Bazel(Package):
     arch = platform.machine()
 
     def url_for_version(self, version):
-        # Versions > 7.0.2 use installer scripts
         if version > Version("7.0.2"):
             return f"https://github.com/bazelbuild/bazel/releases/download/{version}/bazel-{version}-installer-{self.system}-{self.arch}.sh"
         else:
@@ -275,13 +274,8 @@ class Bazel(Package):
 
     def install(self, spec, prefix):
         if spec.satisfies("@7.0.3:"):
-            # Determine platform and architecture
-            #system = platform.system().lower()
-            #arch   = platform.machine()
-
-            installer = f"bazel-{self.version}-installer-{self.system}-{self.arch}.sh"
-
             # Download the installer script
+            installer = f"bazel-{self.version}-installer-{self.system}-{self.arch}.sh"
             installer_url = f"https://github.com/bazelbuild/bazel/releases/download/{self.version}/{installer}"
             curl = which("curl")
             curl("-o", installer, installer_url)
@@ -298,10 +292,6 @@ class Bazel(Package):
             # For versions below 7.0.2, use the existing build process
             mkdir(prefix.bin)
             install("output/bazel", prefix.bin)
-            #bash = which("bash")
-            #bash("./compile.sh")
-            #mkdirp(prefix.bin)
-            #install("output/bazel", prefix.bin)
 
     @run_after("install")
     @on_package_attributes(run_tests=True)
